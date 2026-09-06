@@ -30,6 +30,10 @@ jobs:
         run: |
           pip install tensorflow==2.15.1
 
+      - name: Install ONNX tools
+        run: |
+          pip install tf2onnx onnx onnxruntime
+
       - name: Download official LIAE model
         run: |
           mkdir -p model
@@ -89,3 +93,7 @@ jobs:
       - name: Test LIAE inference
         run: |
           python converter/test_inference.py
+
+      - name: Export FP32 ONNX
+        run: |
+          python converter/export_onnx.py
