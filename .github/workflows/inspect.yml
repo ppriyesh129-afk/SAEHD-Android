@@ -1,9 +1,45 @@
-name: Test Workflow
+name: Inspect DeepFaceLab SAEHD Model
 
 on: workflow_dispatch
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  inspect:
+    runs-on: ubuntu-22.04
+
     steps:
-      - run: echo "GitHub Actions YAML works"
+      - name: Checkout SAEHD-Android
+        uses: actions/checkout@v4
+
+      - name: Checkout DeepFaceLab
+        uses: actions/checkout@v4
+        with:
+          repository: iperov/DeepFaceLab
+          path: third_party/DeepFaceLab
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install NumPy
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy==1.26.4
+
+      - name: Show repository
+        run: |
+          echo "=== PROJECT ==="
+          pwd
+
+          echo "=== MODEL DIRECTORY ==="
+          mkdir -p model
+          find model -maxdepth 1 -type f -printf '%f %s bytes\n' || true
+
+          echo "=== DFL SOURCE ==="
+          test -f third_party/DeepFaceLab/core/leras/archis/DeepFakeArchi.py
+
+          echo "DeepFaceLab source found."
+
+      - name: Run inspector
+        run: |
+          python tools/inspect_model.py
