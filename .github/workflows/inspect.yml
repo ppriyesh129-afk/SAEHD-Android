@@ -26,18 +26,53 @@ jobs:
           python -m pip install --upgrade pip
           pip install numpy==1.26.4
 
-      - name: Show repository
+      - name: Download official LIAE model
         run: |
-          echo "=== PROJECT ==="
-          pwd
-
-          echo "=== MODEL DIRECTORY ==="
           mkdir -p model
-          find model -maxdepth 1 -type f -printf '%f %s bytes\n' || true
+          wget -O /tmp/LIAE.zip \
+            "https://sourceforge.net/projects/deepfacelab.mirror/files/pretrained/LIAE.f-128-80-48-16-1.000.000.zip/download"
 
-          echo "=== DFL SOURCE ==="
+      - name: Extract model
+        run: |
+          mkdir -p model
+          unzip -o /tmp/LIAE.zip -d model
+
+          echo "=== EXTRACTED FILES ==="
+          find model -type f -printf '%p %s bytes\n'
+
+      - name: Locate model files
+        run: |
+          echo "=== SEARCHING FOR SAEHD WEIGHTS ==="
+
+          find model -type f \
+            \( -name "*encoder*.npy" \
+            -o -name "*inter_AB*.npy" \
+            -o -name "*inter_B*.npy" \
+            -o -name "*decoder*.npy" \) \
+            -print
+
+      - name: Prepare model directory
+        run: |
+          mkdir -p model
+
+          find model -type f -name "*encoder*.npy" \
+            -exec cp {} model/new_SAEHD_encoder.npy \;
+
+          find model -type f -name "*inter_AB*.npy" \
+            -exec cp {} model/new_SAEHD_inter_AB.npy \;
+
+          find model -type f -name "*inter_B*.npy" \
+            -exec cp {} model/new_SAEHD_inter_B.npy \;
+
+          find model -type f -name "*decoder.npy" \
+            -exec cp {} model/new_SAEHD_decoder.npy \;
+
+          echo "=== FINAL MODEL FILES ==="
+          ls -lh model/*.npy
+
+      - name: Verify DeepFaceLab source
+        run: |
           test -f third_party/DeepFaceLab/core/leras/archis/DeepFakeArchi.py
-
           echo "DeepFaceLab source found."
 
       - name: Run inspector
