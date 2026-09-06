@@ -8,7 +8,6 @@ inspect:
 runs-on: ubuntu-22.04
 
 steps:
-
   - name: Checkout project
     uses: actions/checkout@v4
 
@@ -17,7 +16,6 @@ steps:
     with:
       repository: iperov/DeepFaceLab
       path: third_party/DeepFaceLab
-      ref: master
 
   - name: Setup Python
     uses: actions/setup-python@v5
@@ -31,7 +29,7 @@ steps:
 
   - name: Check model files
     run: |
-      echo "Model directory:"
+      echo "=== MODEL DIRECTORY ==="
       mkdir -p model
       find model -maxdepth 1 -type f -printf '%f %s bytes\n' || true
 
