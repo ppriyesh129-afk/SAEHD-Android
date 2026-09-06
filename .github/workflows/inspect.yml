@@ -26,6 +26,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install numpy==1.26.4
 
+      - name: Install TensorFlow
+        run: |
+          pip install tensorflow==2.15.1
+
       - name: Download official LIAE model
         run: |
           mkdir -p model
@@ -38,12 +42,11 @@ jobs:
           unzip -o /tmp/LIAE.zip -d model
 
           echo "=== EXTRACTED FILES ==="
-          find model -type f -printf '%p %s bytes\n'
+          find model -type f -printf '%f %s bytes\n'
 
       - name: Locate model files
         run: |
           echo "=== SEARCHING FOR SAEHD WEIGHTS ==="
-
           find model -type f \
             \( -name "*encoder*.npy" \
             -o -name "*inter_AB*.npy" \
@@ -77,8 +80,12 @@ jobs:
 
       - name: Derive exact LIAE architecture
         run: |
-          python tools/derive_liae_ud.py
+          python tools/derive_liae.py
 
       - name: Run inspector
         run: |
           python tools/inspect_model.py
+
+      - name: Test LIAE inference
+        run: |
+          python converter/test_inference.py
