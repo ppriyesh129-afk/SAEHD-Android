@@ -1,67 +1,139 @@
 from pathlib import Path
+import sys
 import numpy as np
+
+DeepFaceLab source is downloaded into third_party/DeepFaceLab
+
+DFL_ROOT = Path("third_party/DeepFaceLab")
+
+sys.path.insert(0, str(DFL_ROOT))
+
+from core.leras import nn
 
 MODEL_DIR = Path("model")
 
 FILES = [
-    "new_SAEHD_encoder.npy",
-    "new_SAEHD_inter_AB.npy",
-    "new_SAEHD_inter_B.npy",
-    "new_SAEHD_decoder.npy",
+"new_SAEHD_encoder.npy",
+"new_SAEHD_inter_AB.npy",
+"new_SAEHD_inter_B.npy",
+"new_SAEHD_decoder.npy",
 ]
 
-def inspect(path):
-    print("\n" + "=" * 80)
-    print(path.name)
-    print("=" * 80)
+def count_weights(weights):
+total = 0
 
-    if not path.exists():
-        print("MISSING")
+for w in weights:
+    try:
+        total += int(np.prod(w.shape))
+    except Exception:
+        pass
+
+return total
+
+def inspect_file(filename):
+path = MODEL_DIR / filename
+
+print()
+print("=" * 100)
+print(filename)
+print("=" * 100)
+
+if not path.exists():
+    print("MISSING:", path)
+    return
+
+size_mb = path.stat().st_size / 1024 / 1024
+
+print(f"File size: {size_mb:.2f} MB")
+
+try:
+    obj = np.load(path, allow_pickle=True)
+
+    print("Top-level dtype :", obj.dtype)
+    print("Top-level shape :", obj.shape)
+
+    if obj.dtype != object:
+        print("Not an object array.")
         return
 
-    print("File size:", f"{path.stat().st_size / 1024 / 1024:.2f} MB")
+    flat = obj.reshape(-1)
 
-    try:
-        obj = np.load(path, allow_pickle=True)
+    print("Object count:", len(flat))
 
-        print("NumPy type :", type(obj))
-        print("dtype      :", obj.dtype)
-        print("shape      :", obj.shape)
+    total = 0
 
-        if obj.dtype == object:
-            flat = obj.reshape(-1)
+    for i, item in enumerate(flat):
 
-            print("objects    :", len(flat))
+        print()
+        print(f"[OBJECT {i}]")
+        print("Type:", type(item))
 
-            for i, item in enumerate(flat):
-                print(f"\nObject {i}:")
-                print("  type:", type(item))
+        if isinstance(item, dict):
 
-                if isinstance(item, dict):
-                    for key, value in item.items():
-                        if isinstance(value, np.ndarray):
-                            print(
-                                f"  {key}: "
-                                f"shape={value.shape}, "
-                                f"dtype={value.dtype}, "
-                                f"elements={value.size:,}"
-                            )
-                        else:
-                            print(f"  {key}: {type(value)}")
+            for key, value in item.items():
 
-                elif isinstance(item, np.ndarray):
+                if isinstance(value, np.ndarray):
+
+                    params = int(np.prod(value.shape))
+                    total += params
+
                     print(
-                        "  shape:",
-                        item.shape,
-                        "dtype:",
-                        item.dtype,
-                        "elements:",
-                        f"{item.size:,}",
+                        f"  {key}: "
+                        f"shape={value.shape}, "
+                        f"dtype={value.dtype}, "
+                        f"params={params:,}"
                     )
 
-    except Exception as e:
-        print("ERROR:", repr(e))
+                else:
+                    print(
+                        f"  {key}: "
+                        f"type={type(value)}"
+                    )
 
+        elif isinstance(item, np.ndarray):
+
+            params = int(np.prod(item.shape))
+            total += params
+
+            print(
+                "  array:",
+                f"shape={item.shape},",
+                f"dtype={item.dtype},",
+                f"params={params:,}"
+            )
+
+    print()
+    print("-" * 100)
+    print(f"TOTAL PARAMETERS IN {filename}: {total:,}")
+    print("-" * 100)
+
+except Exception as e:
+
+    print()
+    print("ERROR")
+    print(repr(e))
+
+print()
+print("=" * 100)
+print("DeepFaceLab SAEHD MODEL INSPECTOR")
+print("=" * 100)
+
+print()
+print("Python:", sys.version)
+print("NumPy:", np.version)
+
+try:
+print("TensorFlow:", nn.tf.version)
+except Exception as e:
+print("TensorFlow version unavailable:", repr(e))
+
+print()
+print("Model directory:", MODEL_DIR.resolve())
 
 for filename in FILES:
-    inspect(MODEL_DIR / filename)
+inspect_file(filename)
+
+print()
+print("=" * 100)
+print("INSPECTION COMPLETE")
+print("=" * 100)
