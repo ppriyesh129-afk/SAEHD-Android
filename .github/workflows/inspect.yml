@@ -75,7 +75,7 @@ jobs:
           test -f third_party/DeepFaceLab/core/leras/archis/DeepFakeArchi.py
           echo "DeepFaceLab source found."
 
-      - name: Derive exact LIAE-UD architecture
+      - name: Derive exact LIAE architecture
         run: |
           python tools/derive_liae_ud.py
 
