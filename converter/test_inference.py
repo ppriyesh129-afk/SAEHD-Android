@@ -17,22 +17,22 @@ print("=" * 80)
 encoder = np.load(
     MODEL_DIR / "new_SAEHD_encoder.npy",
     allow_pickle=True,
-).item()
+)
 
 inter_ab = np.load(
     MODEL_DIR / "new_SAEHD_inter_AB.npy",
     allow_pickle=True,
-).item()
+)
 
 inter_b = np.load(
     MODEL_DIR / "new_SAEHD_inter_B.npy",
     allow_pickle=True,
-).item()
+)
 
 decoder = np.load(
     MODEL_DIR / "new_SAEHD_decoder.npy",
     allow_pickle=True,
-).item()
+)
 
 print("✓ Weights loaded")
 
