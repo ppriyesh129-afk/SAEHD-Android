@@ -1,11 +1,9 @@
-name: Inspect DeepFaceLab SAEHD Model
+name: Test Workflow
 
-'on':
-workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
-inspect:
-runs-on: ubuntu-22.04
+test:
+runs-on: ubuntu-latest
 steps:
-- name: Test
-run: echo "Workflow YAML is valid"
+- run: echo "GitHub Actions YAML works"
