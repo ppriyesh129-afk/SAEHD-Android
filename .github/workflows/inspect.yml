@@ -32,16 +32,25 @@ jobs:
             "onnx==1.16.2" \
             "onnxruntime==1.18.1"
 
+      - name: Cache LIAE model
+        uses: actions/cache@v4
+        with:
+          path: model_cache
+          key: liae-128-80-48-16-v1
+
       - name: Download official LIAE model
         run: |
-          mkdir -p model
-          wget -O /tmp/LIAE.zip \
-            "https://sourceforge.net/projects/deepfacelab.mirror/files/pretrained/LIAE.f-128-80-48-16-1.000.000.zip/download"
+          mkdir -p model_cache
+
+          if [ ! -f model_cache/LIAE.zip ]; then
+            wget -O model_cache/LIAE.zip \
+              "https://sourceforge.net/projects/deepfacelab.mirror/files/pretrained/LIAE.f-128-80-48-16-1.000.000.zip/download"
+          fi
 
       - name: Extract model
         run: |
           mkdir -p model
-          unzip -o /tmp/LIAE.zip -d model
+          unzip -o model_cache/LIAE.zip -d model
 
           echo "=== EXTRACTED FILES ==="
           find model -type f -printf '%f %s bytes\n'
