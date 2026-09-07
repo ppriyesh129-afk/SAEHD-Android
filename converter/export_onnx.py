@@ -13,7 +13,10 @@ print("=" * 80)
 print("EXPORTING LIAE FP32 TO ONNX")
 print("=" * 80)
 
-# Load weights
+# -------------------------------------------------
+# Load official DeepFaceLab weights
+# -------------------------------------------------
+
 encoder = np.load(MODEL_DIR / "new_SAEHD_encoder.npy", allow_pickle=True)
 inter_ab = np.load(MODEL_DIR / "new_SAEHD_inter_AB.npy", allow_pickle=True)
 inter_b = np.load(MODEL_DIR / "new_SAEHD_inter_B.npy", allow_pickle=True)
@@ -21,7 +24,10 @@ decoder = np.load(MODEL_DIR / "new_SAEHD_decoder.npy", allow_pickle=True)
 
 print("✓ Weights loaded")
 
+# -------------------------------------------------
 # Build model
+# -------------------------------------------------
+
 model = LIAEModel(encoder, inter_ab, inter_b, decoder)
 
 # Build once
@@ -31,18 +37,20 @@ model(src, dst)
 
 print("✓ Model built")
 
-@tf.function(input_signature=[
-    tf.TensorSpec([1, 128, 128, 3], tf.float32, name="src"),
-    tf.TensorSpec([1, 128, 128, 3], tf.float32, name="dst"),
-])
-def forward(src, dst):
-    return model(src, dst)
+# -------------------------------------------------
+# Export ONNX (weights embedded)
+# -------------------------------------------------
 
 onnx_path = OUT_DIR / "LIAE_128_80_48_16_fp32.onnx"
 
-tf2onnx.convert.from_function(
-    forward,
-    input_signature=forward.input_signature,
+spec = (
+    tf.TensorSpec((1, 128, 128, 3), tf.float32, name="src"),
+    tf.TensorSpec((1, 128, 128, 3), tf.float32, name="dst"),
+)
+
+tf2onnx.convert.from_keras(
+    model,
+    input_signature=spec,
     opset=17,
     output_path=str(onnx_path),
 )
