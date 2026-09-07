@@ -8,13 +8,13 @@ MODEL_PATH = Path(
 )
 
 
-print("=" * 80)
-print("VERIFYING LIAE FP32 ONNX")
-print("=" * 80)
+print("=" * 70)
+print("ONNX RUNTIME TEST")
+print("=" * 70)
 
 
 # =====================================================
-# LOAD
+# CREATE SESSION
 # =====================================================
 
 session = ort.InferenceSession(
@@ -23,20 +23,18 @@ session = ort.InferenceSession(
 )
 
 
-print("✓ ONNX structure is valid")
-
-
 # =====================================================
 # INPUTS
 # =====================================================
 
 print()
-print("Inputs:")
+print("RUNTIME INPUTS")
+print("-" * 70)
 
 for inp in session.get_inputs():
-    print(
-        f"  {inp.name} -> {inp.shape}"
-    )
+    print("Name :", inp.name)
+    print("Shape:", inp.shape)
+    print("Type :", inp.type)
 
 
 # =====================================================
@@ -44,19 +42,20 @@ for inp in session.get_inputs():
 # =====================================================
 
 print()
-print("Outputs:")
+print("RUNTIME OUTPUTS")
+print("-" * 70)
 
 for out in session.get_outputs():
-    print(
-        f"  {out.name} -> {out.shape}"
-    )
+    print("Name :", out.name)
+    print("Shape:", out.shape)
+    print("Type :", out.type)
 
 
 # =====================================================
-# CREATE TEST INPUT
+# INPUT
 # =====================================================
 
-inp = session.get_inputs()[0]
+input_name = session.get_inputs()[0].name
 
 dst = np.random.rand(
     1,
@@ -67,51 +66,49 @@ dst = np.random.rand(
 
 
 # =====================================================
-# RUN
+# INFERENCE
 # =====================================================
+
+print()
+print("RUNNING TEST INFERENCE")
+print("-" * 70)
 
 outputs = session.run(
     None,
     {
-        inp.name: dst
+        input_name: dst
     }
 )
 
 
 # =====================================================
-# VALIDATE
+# CHECK
 # =====================================================
 
-assert len(outputs) == 3, (
-    f"Expected 3 outputs, got {len(outputs)}"
-)
-
+assert len(outputs) == 3
 
 dst_mask = outputs[0]
 swapped_face = outputs[1]
 src_mask = outputs[2]
 
 
-assert dst_mask.shape == (
-    1, 128, 128, 1
-)
+assert dst_mask.shape == (1, 128, 128, 1)
+assert swapped_face.shape == (1, 128, 128, 3)
+assert src_mask.shape == (1, 128, 128, 1)
 
-assert swapped_face.shape == (
-    1, 128, 128, 3
-)
 
-assert src_mask.shape == (
-    1, 128, 128, 1
-)
+assert np.isfinite(dst_mask).all()
+assert np.isfinite(swapped_face).all()
+assert np.isfinite(src_mask).all()
 
 
 # =====================================================
-# RANGE
+# RESULTS
 # =====================================================
 
 print()
-print("Output ranges:")
-print("-" * 80)
+print("RESULTS")
+print("-" * 70)
 
 print(
     "Destination mask:",
@@ -135,16 +132,7 @@ print(
 )
 
 
-# =====================================================
-# NaN / INF CHECK
-# =====================================================
-
-assert np.isfinite(dst_mask).all()
-assert np.isfinite(swapped_face).all()
-assert np.isfinite(src_mask).all()
-
-
 print()
-print("=" * 80)
-print("✓ ONNX INFERENCE TEST PASSED")
-print("=" * 80)
+print("=" * 70)
+print("✓ ONNX RUNTIME TEST PASSED")
+print("=" * 70)
