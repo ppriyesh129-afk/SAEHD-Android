@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
+
 # -------------------------------------------------
 # Utility
 # -------------------------------------------------
@@ -8,212 +9,259 @@ import numpy as np
 def depth_to_space(x):
     return tf.nn.depth_to_space(x, 2)
 
+
 def lrelu(x):
     return tf.nn.leaky_relu(x, alpha=0.1)
 
+
 # -------------------------------------------------
-# Conv layer
+# Conv
 # -------------------------------------------------
 
 class Conv(tf.keras.layers.Layer):
+
     def __init__(self, weight, bias, stride=1):
         super().__init__()
+
         self.w = tf.constant(weight, dtype=tf.float32)
         self.b = tf.constant(bias, dtype=tf.float32)
         self.stride = stride
 
     def call(self, x):
+
         x = tf.nn.conv2d(
             x,
             self.w,
             strides=[1, self.stride, self.stride, 1],
             padding="SAME"
         )
+
         x = tf.nn.bias_add(x, self.b)
+
         return x
+
 
 # -------------------------------------------------
 # Dense
 # -------------------------------------------------
 
 class Dense(tf.keras.layers.Layer):
+
     def __init__(self, weight, bias):
         super().__init__()
+
         self.w = tf.constant(weight, dtype=tf.float32)
         self.b = tf.constant(bias, dtype=tf.float32)
 
     def call(self, x):
+
         return tf.matmul(x, self.w) + self.b
+
 
 # -------------------------------------------------
 # Downscale
 # -------------------------------------------------
 
 class Downscale(tf.keras.layers.Layer):
+
     def __init__(self, w, b):
         super().__init__()
+
         self.conv = Conv(w, b, stride=2)
 
     def call(self, x):
+
         return lrelu(self.conv(x))
+
 
 # -------------------------------------------------
 # Upscale
 # -------------------------------------------------
 
 class Upscale(tf.keras.layers.Layer):
+
     def __init__(self, w, b):
         super().__init__()
+
         self.conv = Conv(w, b)
 
     def call(self, x):
+
         x = lrelu(self.conv(x))
+
         return depth_to_space(x)
+
 
 # -------------------------------------------------
 # Residual
 # -------------------------------------------------
 
 class Residual(tf.keras.layers.Layer):
+
     def __init__(self, w1, b1, w2, b2):
         super().__init__()
+
         self.c1 = Conv(w1, b1)
         self.c2 = Conv(w2, b2)
 
     def call(self, x):
+
         y = lrelu(self.c1(x))
         y = self.c2(y)
+
         return lrelu(x + y)
 
+
 # -------------------------------------------------
-# Main model
+# LIAE
 # -------------------------------------------------
 
 class LIAEModel(tf.keras.Model):
 
-    def __init__(self, encoder, inter_ab, inter_b, decoder):
+    def __init__(
+        self,
+        encoder,
+        inter_ab,
+        inter_b,
+        decoder
+    ):
+
         super().__init__()
 
-        # ---------------- Encoder ----------------
+        # =================================================
+        # ENCODER
+        # =================================================
 
         self.down1 = Downscale(
             encoder["down1/downs_0/conv1/weight:0"],
-            encoder["down1/downs_0/conv1/bias:0"],
+            encoder["down1/downs_0/conv1/bias:0"]
         )
 
         self.down2 = Downscale(
             encoder["down1/downs_1/conv1/weight:0"],
-            encoder["down1/downs_1/conv1/bias:0"],
+            encoder["down1/downs_1/conv1/bias:0"]
         )
 
         self.down3 = Downscale(
             encoder["down1/downs_2/conv1/weight:0"],
-            encoder["down1/downs_2/conv1/bias:0"],
+            encoder["down1/downs_2/conv1/bias:0"]
         )
 
         self.down4 = Downscale(
             encoder["down1/downs_3/conv1/weight:0"],
-            encoder["down1/downs_3/conv1/bias:0"],
+            encoder["down1/downs_3/conv1/bias:0"]
         )
 
-        # ---------------- Inter ----------------
+        # =================================================
+        # INTER_AB
+        # =================================================
 
         self.ab_dense1 = Dense(
             inter_ab["dense1/weight:0"],
-            inter_ab["dense1/bias:0"],
+            inter_ab["dense1/bias:0"]
         )
 
         self.ab_dense2 = Dense(
             inter_ab["dense2/weight:0"],
-            inter_ab["dense2/bias:0"],
+            inter_ab["dense2/bias:0"]
         )
 
         self.ab_up = Upscale(
             inter_ab["upscale1/conv1/weight:0"],
-            inter_ab["upscale1/conv1/bias:0"],
+            inter_ab["upscale1/conv1/bias:0"]
         )
+
+        # =================================================
+        # INTER_B
+        # =================================================
 
         self.b_dense1 = Dense(
             inter_b["dense1/weight:0"],
-            inter_b["dense1/bias:0"],
+            inter_b["dense1/bias:0"]
         )
 
         self.b_dense2 = Dense(
             inter_b["dense2/weight:0"],
-            inter_b["dense2/bias:0"],
+            inter_b["dense2/bias:0"]
         )
 
         self.b_up = Upscale(
             inter_b["upscale1/conv1/weight:0"],
-            inter_b["upscale1/conv1/bias:0"],
+            inter_b["upscale1/conv1/bias:0"]
         )
 
-        # ---------------- Decoder ----------------
+        # =================================================
+        # DECODER
+        # =================================================
 
         self.up0 = Upscale(
             decoder["upscale0/conv1/weight:0"],
-            decoder["upscale0/conv1/bias:0"],
+            decoder["upscale0/conv1/bias:0"]
         )
 
         self.up1 = Upscale(
             decoder["upscale1/conv1/weight:0"],
-            decoder["upscale1/conv1/bias:0"],
+            decoder["upscale1/conv1/bias:0"]
         )
 
         self.up2 = Upscale(
             decoder["upscale2/conv1/weight:0"],
-            decoder["upscale2/conv1/bias:0"],
+            decoder["upscale2/conv1/bias:0"]
         )
 
         self.res0 = Residual(
             decoder["res0/conv1/weight:0"],
             decoder["res0/conv1/bias:0"],
             decoder["res0/conv2/weight:0"],
-            decoder["res0/conv2/bias:0"],
+            decoder["res0/conv2/bias:0"]
         )
 
         self.res1 = Residual(
             decoder["res1/conv1/weight:0"],
             decoder["res1/conv1/bias:0"],
             decoder["res1/conv2/weight:0"],
-            decoder["res1/conv2/bias:0"],
+            decoder["res1/conv2/bias:0"]
         )
 
         self.res2 = Residual(
             decoder["res2/conv1/weight:0"],
             decoder["res2/conv1/bias:0"],
             decoder["res2/conv2/weight:0"],
-            decoder["res2/conv2/bias:0"],
+            decoder["res2/conv2/bias:0"]
         )
 
         self.rgb = Conv(
             decoder["out_conv/weight:0"],
-            decoder["out_conv/bias:0"],
+            decoder["out_conv/bias:0"]
         )
 
-        # mask branch
+        # =================================================
+        # MASK DECODER
+        # =================================================
 
         self.m0 = Upscale(
             decoder["upscalem0/conv1/weight:0"],
-            decoder["upscalem0/conv1/bias:0"],
+            decoder["upscalem0/conv1/bias:0"]
         )
 
         self.m1 = Upscale(
             decoder["upscalem1/conv1/weight:0"],
-            decoder["upscalem1/conv1/bias:0"],
+            decoder["upscalem1/conv1/bias:0"]
         )
 
         self.m2 = Upscale(
             decoder["upscalem2/conv1/weight:0"],
-            decoder["upscalem2/conv1/bias:0"],
+            decoder["upscalem2/conv1/bias:0"]
         )
 
         self.mask = Conv(
             decoder["out_convm/weight:0"],
-            decoder["out_convm/bias:0"],
+            decoder["out_convm/bias:0"]
         )
 
-    # -------------------------------------------------
+    # =================================================
+    # ENCODER
+    # =================================================
 
     def encode(self, x):
 
@@ -222,26 +270,46 @@ class LIAEModel(tf.keras.Model):
         x = self.down3(x)
         x = self.down4(x)
 
-        return tf.reshape(x, [tf.shape(x)[0], -1])
+        return tf.reshape(
+            x,
+            [tf.shape(x)[0], -1]
+        )
 
-    # -------------------------------------------------
+    # =================================================
+    # INTER
+    # =================================================
 
-    def inter(self, flat, which="AB"):
+    def inter(self, flat, which):
 
         if which == "AB":
+
             x = self.ab_dense1(flat)
             x = self.ab_dense2(x)
-            x = tf.reshape(x, [-1, 8, 8, 256])
-            return self.ab_up(x)
 
-        x = self.b_dense1(flat)
-        x = self.b_dense2(x)
-        x = tf.reshape(x, [-1, 8, 8, 256])
-        return self.b_up(x)
+        else:
 
-    # -------------------------------------------------
+            x = self.b_dense1(flat)
+            x = self.b_dense2(x)
+
+        x = tf.reshape(
+            x,
+            [-1, 8, 8, 256]
+        )
+
+        if which == "AB":
+            x = self.ab_up(x)
+        else:
+            x = self.b_up(x)
+
+        return x
+
+    # =================================================
+    # DECODER
+    # =================================================
 
     def decode(self, z):
+
+        # ---------------- RGB ----------------
 
         x = self.up0(z)
         x = self.res0(x)
@@ -252,25 +320,89 @@ class LIAEModel(tf.keras.Model):
         x = self.up2(x)
         x = self.res2(x)
 
-        rgb = tf.nn.sigmoid(self.rgb(x))
+        rgb = tf.nn.sigmoid(
+            self.rgb(x)
+        )
+
+        # ---------------- MASK ----------------
 
         m = self.m0(z)
         m = self.m1(m)
         m = self.m2(m)
-        m = tf.nn.sigmoid(self.mask(m))
 
-        return rgb, m
+        mask = tf.nn.sigmoid(
+            self.mask(m)
+        )
+
+        return rgb, mask
+
+    # =================================================
+    # OFFICIAL DFL LIAE MERGE
+    # =================================================
+
+    def merge(self, dst):
+
+        # Encode destination
+        dst_code = self.encode(dst)
+
+        # Destination identity/code
+        dst_inter_B = self.inter(
+            dst_code,
+            "B"
+        )
+
+        # Shared AB identity/code
+        dst_inter_AB = self.inter(
+            dst_code,
+            "AB"
+        )
+
+        # -------------------------------------------------
+        # Destination reconstruction code
+        #
+        # [ B , AB ]
+        # -------------------------------------------------
+
+        dst_code = tf.concat(
+            [
+                dst_inter_B,
+                dst_inter_AB
+            ],
+            axis=-1
+        )
+
+        # -------------------------------------------------
+        # Source→Destination code
+        #
+        # [ AB , AB ]
+        # -------------------------------------------------
+
+        src_dst_code = tf.concat(
+            [
+                dst_inter_AB,
+                dst_inter_AB
+            ],
+            axis=-1
+        )
+
+        # Swapped face
+        swapped_face, src_mask = self.decode(
+            src_dst_code
+        )
+
+        # Destination mask
+        _, dst_mask = self.decode(
+            dst_code
+        )
+
+        return (
+            swapped_face,
+            dst_mask,
+            src_mask
+        )
 
     # -------------------------------------------------
 
-    def call(self, src, dst):
+    def call(self, dst):
 
-        src_flat = self.encode(src)
-        dst_flat = self.encode(dst)
-
-        src_code = self.inter(src_flat, "AB")
-        dst_code = self.inter(dst_flat, "B")
-
-        merged = tf.concat([src_code, dst_code], axis=-1)
-
-        return self.decode(merged)
+        return self.merge(dst)
