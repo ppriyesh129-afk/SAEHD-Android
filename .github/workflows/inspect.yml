@@ -12,19 +12,16 @@ jobs:
       - name: Checkout SAEHD-Android
         uses: actions/checkout@v4
 
-
       - name: Checkout DeepFaceLab
         uses: actions/checkout@v4
         with:
           repository: iperov/DeepFaceLab
           path: third_party/DeepFaceLab
 
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-
 
       - name: Install TensorFlow and ONNX
         run: |
@@ -37,13 +34,11 @@ jobs:
             "onnx==1.16.2" \
             "onnxruntime==1.18.1"
 
-
       - name: Cache LIAE model
         uses: actions/cache@v4
         with:
           path: model_cache
           key: liae-128-80-48-16-v1
-
 
       - name: Download official LIAE model
         run: |
@@ -57,7 +52,6 @@ jobs:
           echo "=== CHECKPOINT ==="
           ls -lh model_cache/LIAE.zip
 
-
       - name: Extract model
         run: |
           mkdir -p model
@@ -66,7 +60,6 @@ jobs:
 
           echo "=== EXTRACTED FILES ==="
           find model -type f -printf '%p %s bytes\n'
-
 
       - name: Locate model files
         run: |
@@ -78,7 +71,6 @@ jobs:
             -o -iname "*inter_B*.npy" \
             -o -iname "*decoder*.npy" \) \
             -print
-
 
       - name: Prepare model directory
         run: |
@@ -100,7 +92,6 @@ jobs:
           echo "Inter_B : $INTER_B"
           echo "Decoder : $DECODER"
 
-
           if [ -z "$ENCODER" ]; then
             echo "ERROR: Encoder weights not found"
             exit 1
@@ -121,20 +112,14 @@ jobs:
             exit 1
           fi
 
-
           cp "$ENCODER" model/new_SAEHD_encoder.npy
-
           cp "$INTER_AB" model/new_SAEHD_inter_AB.npy
-
           cp "$INTER_B" model/new_SAEHD_inter_B.npy
-
           cp "$DECODER" model/new_SAEHD_decoder.npy
-
 
           echo "=== FINAL MODEL FILES ==="
 
           ls -lh model/new_SAEHD_*.npy
-
 
       - name: Verify DeepFaceLab source
         run: |
@@ -143,31 +128,25 @@ jobs:
 
           echo "DeepFaceLab source found."
 
-
       - name: Derive exact LIAE architecture
         run: |
           python tools/derive_liae.py
-
 
       - name: Run inspector
         run: |
           python tools/inspect_model.py
 
-
       - name: Test LIAE inference
         run: |
           python converter/test_inference.py
-
 
       - name: Export FP32 ONNX
         run: |
           python converter/export_onnx.py
 
-
       - name: Verify ONNX Runtime
         run: |
           python converter/verify_onnx.py
-
 
       - name: Verify FULL ONNX
         run: |
@@ -193,6 +172,202 @@ jobs:
 
           echo "✓ FULL ONNX DETECTED"
 
+      - name: Inspect ACTUAL ONNX Inputs Outputs Shapes
+        run: |
+          python - <<'PY'
+          import onnx
+
+          path = "converter/output/LIAE_128_80_48_16_fp32.onnx"
+
+          model = onnx.load(path)
+
+          print()
+          print("=" * 70)
+          print("ACTUAL LIAE ONNX GRAPH")
+          print("=" * 70)
+
+          print()
+          print("INPUTS")
+          print("-" * 70)
+
+          for x in model.graph.input:
+
+              tensor = x.type.tensor_type
+
+              shape = []
+
+              for d in tensor.shape.dim:
+
+                  if d.dim_value:
+                      shape.append(str(d.dim_value))
+
+                  elif d.dim_param:
+                      shape.append(d.dim_param)
+
+                  else:
+                      shape.append("?")
+
+              print("Name :", x.name)
+              print("Shape:", "[" + ", ".join(shape) + "]")
+              print("Type :", tensor.elem_type)
+              print()
+
+          print()
+          print("OUTPUTS")
+          print("-" * 70)
+
+          for x in model.graph.output:
+
+              tensor = x.type.tensor_type
+
+              shape = []
+
+              for d in tensor.shape.dim:
+
+                  if d.dim_value:
+                      shape.append(str(d.dim_value))
+
+                  elif d.dim_param:
+                      shape.append(d.dim_param)
+
+                  else:
+                      shape.append("?")
+
+              print("Name :", x.name)
+              print("Shape:", "[" + ", ".join(shape) + "]")
+              print("Type :", tensor.elem_type)
+              print()
+
+          print("=" * 70)
+          print("GRAPH INSPECTION COMPLETE")
+          print("=" * 70)
+          PY
+
+      - name: Test ACTUAL ONNX Runtime Inference
+        run: |
+          python - <<'PY'
+          import numpy as np
+          import onnxruntime as ort
+
+          path = "converter/output/LIAE_128_80_48_16_fp32.onnx"
+
+          print()
+          print("=" * 70)
+          print("ONNX RUNTIME TEST")
+          print("=" * 70)
+
+          session = ort.InferenceSession(
+              path,
+              providers=["CPUExecutionProvider"]
+          )
+
+          print()
+          print("RUNTIME INPUTS")
+          print("-" * 70)
+
+          for x in session.get_inputs():
+              print(
+                  "Name :",
+                  x.name
+              )
+              print(
+                  "Shape:",
+                  x.shape
+              )
+              print(
+                  "Type :",
+                  x.type
+              )
+              print()
+
+          print()
+          print("RUNTIME OUTPUTS")
+          print("-" * 70)
+
+          for x in session.get_outputs():
+              print(
+                  "Name :",
+                  x.name
+              )
+              print(
+                  "Shape:",
+                  x.shape
+              )
+              print(
+                  "Type :",
+                  x.type
+              )
+              print()
+
+          print()
+          print("RUNNING TEST INFERENCE")
+          print("-" * 70)
+
+          src = np.zeros(
+              (1, 128, 128, 3),
+              dtype=np.float32
+          )
+
+          dst = np.zeros(
+              (1, 128, 128, 3),
+              dtype=np.float32
+          )
+
+          outputs = session.run(
+              None,
+              {
+                  "src": src,
+                  "dst": dst
+              }
+          )
+
+          for i, output in enumerate(outputs):
+
+              arr = np.asarray(output)
+
+              print()
+              print("OUTPUT", i)
+              print("-" * 70)
+
+              print("Shape :", arr.shape)
+              print("Dtype :", arr.dtype)
+              print("Size  :", arr.size)
+
+              print(
+                  "Min   :",
+                  float(np.min(arr))
+              )
+
+              print(
+                  "Max   :",
+                  float(np.max(arr))
+              )
+
+              print(
+                  "Mean  :",
+                  float(np.mean(arr))
+              )
+
+              print(
+                  "Std   :",
+                  float(np.std(arr))
+              )
+
+              print(
+                  "NaN   :",
+                  bool(np.isnan(arr).any())
+              )
+
+              print(
+                  "Inf   :",
+                  bool(np.isinf(arr).any())
+              )
+
+          print()
+          print("=" * 70)
+          print("ONNX RUNTIME TEST COMPLETE")
+          print("=" * 70)
+          PY
 
       - name: Verify ONNX graph inputs
         run: |
@@ -226,7 +401,6 @@ jobs:
           print("✓ ONLY src AND dst ARE GRAPH INPUTS")
           PY
 
-
       - name: Save ONNX into models folder
         run: |
           mkdir -p models/liae
@@ -240,7 +414,6 @@ jobs:
           echo "========================================"
 
           ls -lh models/liae/LIAE_128_80_48_16_fp32.onnx
-
 
       - name: Upload FULL ONNX artifact
         uses: actions/upload-artifact@v4
