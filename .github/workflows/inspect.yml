@@ -1,6 +1,7 @@
 name: Inspect DeepFaceLab SAEHD Model
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
 
 jobs:
   inspect:
@@ -94,6 +95,10 @@ jobs:
       - name: Export FP32 ONNX
         run: |
           python converter/export_onnx.py
+
+      - name: Verify ONNX Runtime
+        run: |
+          python converter/verify_onnx.py
 
       - name: Upload ONNX model
         uses: actions/upload-artifact@v4
