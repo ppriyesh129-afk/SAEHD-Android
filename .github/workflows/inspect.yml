@@ -265,61 +265,79 @@ jobs:
           print("RUNTIME INPUTS")
           print("-" * 70)
 
-          for x in session.get_inputs():
-              print(
-                  "Name :",
-                  x.name
-              )
-              print(
-                  "Shape:",
-                  x.shape
-              )
-              print(
-                  "Type :",
-                  x.type
-              )
+          inputs = session.get_inputs()
+
+          for x in inputs:
+              print("Name :", x.name)
+              print("Shape:", x.shape)
+              print("Type :", x.type)
               print()
 
           print()
           print("RUNTIME OUTPUTS")
           print("-" * 70)
 
-          for x in session.get_outputs():
-              print(
-                  "Name :",
-                  x.name
-              )
-              print(
-                  "Shape:",
-                  x.shape
-              )
-              print(
-                  "Type :",
-                  x.type
-              )
+          outputs_info = session.get_outputs()
+
+          for x in outputs_info:
+              print("Name :", x.name)
+              print("Shape:", x.shape)
+              print("Type :", x.type)
               print()
+
+          # --------------------------------------------------
+          # ACTUAL EXPORTED GRAPH HAS ONE INPUT
+          # --------------------------------------------------
+
+          if len(inputs) != 1:
+              raise RuntimeError(
+                  f"Expected exactly 1 input, got {len(inputs)}"
+              )
+
+          input_name = inputs[0].name
+
+          if input_name != "in_face":
+              raise RuntimeError(
+                  f"Expected input name 'in_face', got '{input_name}'"
+              )
+
+          in_face = np.zeros(
+              (1, 128, 128, 3),
+              dtype=np.float32
+          )
 
           print()
           print("RUNNING TEST INFERENCE")
           print("-" * 70)
 
-          src = np.zeros(
-              (1, 128, 128, 3),
-              dtype=np.float32
-          )
-
-          dst = np.zeros(
-              (1, 128, 128, 3),
-              dtype=np.float32
-          )
+          print("Input name :", input_name)
+          print("Input shape:", in_face.shape)
 
           outputs = session.run(
               None,
               {
-                  "src": src,
-                  "dst": dst
+                  input_name: in_face
               }
           )
+
+          # --------------------------------------------------
+          # EXPECTED OUTPUTS
+          #
+          # output_1 = destination mask
+          # output_2 = swapped face
+          # output_3 = source/swapped mask
+          # --------------------------------------------------
+
+          if len(outputs) != 3:
+              raise RuntimeError(
+                  f"Expected 3 outputs, got {len(outputs)}"
+              )
+
+          expected_shapes = [
+              (1, 128, 128, 1),
+              (1, 128, 128, 3),
+              (1, 128, 128, 1),
+          ]
 
           for i, output in enumerate(outputs):
 
@@ -332,40 +350,27 @@ jobs:
               print("Shape :", arr.shape)
               print("Dtype :", arr.dtype)
               print("Size  :", arr.size)
+              print("Min   :", float(np.min(arr)))
+              print("Max   :", float(np.max(arr)))
+              print("Mean  :", float(np.mean(arr)))
+              print("Std   :", float(np.std(arr)))
+              print("NaN   :", bool(np.isnan(arr).any()))
+              print("Inf   :", bool(np.isinf(arr).any()))
 
-              print(
-                  "Min   :",
-                  float(np.min(arr))
-              )
+              if arr.shape != expected_shapes[i]:
+                  raise RuntimeError(
+                      f"Output {i} has wrong shape: "
+                      f"{arr.shape}, expected {expected_shapes[i]}"
+                  )
 
-              print(
-                  "Max   :",
-                  float(np.max(arr))
-              )
-
-              print(
-                  "Mean  :",
-                  float(np.mean(arr))
-              )
-
-              print(
-                  "Std   :",
-                  float(np.std(arr))
-              )
-
-              print(
-                  "NaN   :",
-                  bool(np.isnan(arr).any())
-              )
-
-              print(
-                  "Inf   :",
-                  bool(np.isinf(arr).any())
-              )
+              if not np.isfinite(arr).all():
+                  raise RuntimeError(
+                      f"Output {i} contains NaN or Inf"
+                  )
 
           print()
           print("=" * 70)
-          print("ONNX RUNTIME TEST COMPLETE")
+          print("✓ ONNX RUNTIME TEST PASSED")
           print("=" * 70)
           PY
 
@@ -389,16 +394,15 @@ jobs:
 
           print()
           print("Expected:")
-          print("- src")
-          print("- dst")
+          print("- in_face")
 
-          if set(inputs) != {"src", "dst"}:
+          if inputs != ["in_face"]:
               raise RuntimeError(
                   "INVALID ONNX INPUTS: " + str(inputs)
               )
 
           print()
-          print("✓ ONLY src AND dst ARE GRAPH INPUTS")
+          print("✓ ONLY in_face IS THE GRAPH INPUT")
           PY
 
       - name: Save ONNX into models folder
