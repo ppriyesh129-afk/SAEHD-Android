@@ -94,3 +94,9 @@ jobs:
       - name: Export FP32 ONNX
         run: |
           python converter/export_onnx.py
+
+      - name: Upload ONNX model
+        uses: actions/upload-artifact@v4
+        with:
+          name: LIAE_128_80_48_16_FP32_ONNX
+          path: converter/output/LIAE_128_80_48_16_fp32.onnx
