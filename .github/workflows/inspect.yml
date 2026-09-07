@@ -8,8 +8,10 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+
       - name: Checkout SAEHD-Android
         uses: actions/checkout@v4
+
 
       - name: Checkout DeepFaceLab
         uses: actions/checkout@v4
@@ -17,14 +19,17 @@ jobs:
           repository: iperov/DeepFaceLab
           path: third_party/DeepFaceLab
 
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
+
       - name: Install TensorFlow and ONNX
         run: |
           python -m pip install --upgrade pip
+
           pip install --force-reinstall \
             "numpy==1.26.4" \
             "tensorflow==2.15.1" \
@@ -32,11 +37,13 @@ jobs:
             "onnx==1.16.2" \
             "onnxruntime==1.18.1"
 
+
       - name: Cache LIAE model
         uses: actions/cache@v4
         with:
           path: model_cache
           key: liae-128-80-48-16-v1
+
 
       - name: Download official LIAE model
         run: |
@@ -47,70 +54,196 @@ jobs:
               "https://sourceforge.net/projects/deepfacelab.mirror/files/pretrained/LIAE.f-128-80-48-16-1.000.000.zip/download"
           fi
 
+          echo "=== CHECKPOINT ==="
+          ls -lh model_cache/LIAE.zip
+
+
       - name: Extract model
         run: |
           mkdir -p model
+
           unzip -o model_cache/LIAE.zip -d model
 
           echo "=== EXTRACTED FILES ==="
-          find model -type f -printf '%f %s bytes\n'
+          find model -type f -printf '%p %s bytes\n'
+
 
       - name: Locate model files
         run: |
           echo "=== SEARCHING FOR SAEHD WEIGHTS ==="
+
           find model -type f \
-            \( -name "*encoder*.npy" \
-            -o -name "*inter_AB*.npy" \
-            -o -name "*inter_B*.npy" \
-            -o -name "*decoder*.npy" \) \
+            \( -iname "*encoder*.npy" \
+            -o -iname "*inter_AB*.npy" \
+            -o -iname "*inter_B*.npy" \
+            -o -iname "*decoder*.npy" \) \
             -print
+
 
       - name: Prepare model directory
         run: |
           mkdir -p model
 
-          find model -type f -name "*encoder*.npy" \
-            -exec cp {} model/new_SAEHD_encoder.npy \;
+          ENCODER=$(find model -type f -iname "*encoder*.npy" | head -n 1)
 
-          find model -type f -name "*inter_AB*.npy" \
-            -exec cp {} model/new_SAEHD_inter_AB.npy \;
+          INTER_AB=$(find model -type f -iname "*inter_AB*.npy" | head -n 1)
 
-          find model -type f -name "*inter_B*.npy" \
-            -exec cp {} model/new_SAEHD_inter_B.npy \;
+          INTER_B=$(find model -type f \
+            -iname "*inter_B*.npy" \
+            | grep -vi "inter_AB" \
+            | head -n 1)
 
-          find model -type f -name "*decoder.npy" \
-            -exec cp {} model/new_SAEHD_decoder.npy \;
+          DECODER=$(find model -type f -iname "*decoder*.npy" | head -n 1)
+
+          echo "Encoder : $ENCODER"
+          echo "Inter_AB: $INTER_AB"
+          echo "Inter_B : $INTER_B"
+          echo "Decoder : $DECODER"
+
+
+          if [ -z "$ENCODER" ]; then
+            echo "ERROR: Encoder weights not found"
+            exit 1
+          fi
+
+          if [ -z "$INTER_AB" ]; then
+            echo "ERROR: Inter_AB weights not found"
+            exit 1
+          fi
+
+          if [ -z "$INTER_B" ]; then
+            echo "ERROR: Inter_B weights not found"
+            exit 1
+          fi
+
+          if [ -z "$DECODER" ]; then
+            echo "ERROR: Decoder weights not found"
+            exit 1
+          fi
+
+
+          cp "$ENCODER" model/new_SAEHD_encoder.npy
+
+          cp "$INTER_AB" model/new_SAEHD_inter_AB.npy
+
+          cp "$INTER_B" model/new_SAEHD_inter_B.npy
+
+          cp "$DECODER" model/new_SAEHD_decoder.npy
+
 
           echo "=== FINAL MODEL FILES ==="
-          ls -lh model/*.npy
+
+          ls -lh model/new_SAEHD_*.npy
+
 
       - name: Verify DeepFaceLab source
         run: |
-          test -f third_party/DeepFaceLab/core/leras/archis/DeepFakeArchi.py
+          test -f \
+            third_party/DeepFaceLab/core/leras/archis/DeepFakeArchi.py
+
           echo "DeepFaceLab source found."
+
 
       - name: Derive exact LIAE architecture
         run: |
           python tools/derive_liae.py
 
+
       - name: Run inspector
         run: |
           python tools/inspect_model.py
+
 
       - name: Test LIAE inference
         run: |
           python converter/test_inference.py
 
+
       - name: Export FP32 ONNX
         run: |
           python converter/export_onnx.py
+
 
       - name: Verify ONNX Runtime
         run: |
           python converter/verify_onnx.py
 
-      - name: Upload ONNX model
+
+      - name: Verify FULL ONNX
+        run: |
+          MODEL="converter/output/LIAE_128_80_48_16_fp32.onnx"
+
+          echo "========================================"
+          echo "VERIFYING GENERATED ONNX"
+          echo "========================================"
+
+          test -f "$MODEL"
+
+          ls -lh "$MODEL"
+
+          SIZE=$(stat -c%s "$MODEL")
+
+          echo "ONNX size: $SIZE bytes"
+
+          if [ "$SIZE" -lt 10000000 ]; then
+            echo "ERROR: ONNX is suspiciously small."
+            echo "Expected a full model, not a ~20 KB graph."
+            exit 1
+          fi
+
+          echo "✓ FULL ONNX DETECTED"
+
+
+      - name: Verify ONNX graph inputs
+        run: |
+          python - <<'PY'
+          import onnx
+
+          path = "converter/output/LIAE_128_80_48_16_fp32.onnx"
+
+          model = onnx.load(path)
+
+          inputs = [x.name for x in model.graph.input]
+
+          print("========================================")
+          print("ONNX GRAPH INPUTS")
+          print("========================================")
+
+          for name in inputs:
+              print("-", name)
+
+          print()
+          print("Expected:")
+          print("- src")
+          print("- dst")
+
+          if set(inputs) != {"src", "dst"}:
+              raise RuntimeError(
+                  "INVALID ONNX INPUTS: " + str(inputs)
+              )
+
+          print()
+          print("✓ ONLY src AND dst ARE GRAPH INPUTS")
+          PY
+
+
+      - name: Save ONNX into models folder
+        run: |
+          mkdir -p models/liae
+
+          cp \
+            converter/output/LIAE_128_80_48_16_fp32.onnx \
+            models/liae/LIAE_128_80_48_16_fp32.onnx
+
+          echo "========================================"
+          echo "SAVED MODEL"
+          echo "========================================"
+
+          ls -lh models/liae/LIAE_128_80_48_16_fp32.onnx
+
+
+      - name: Upload FULL ONNX artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LIAE_128_80_48_16_FP32_ONNX
-          path: converter/output/LIAE_128_80_48_16_fp32.onnx
+          name: LIAE_128_80_48_16_FP32_ONNX_FULL
+          path: models/liae/LIAE_128_80_48_16_fp32.onnx
