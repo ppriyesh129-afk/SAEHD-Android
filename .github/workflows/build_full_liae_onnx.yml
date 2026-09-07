@@ -1,1 +1,123 @@
+name: Build Full LIAE FP32 ONNX
 
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+
+      # --------------------------------------------------
+      # 1. Checkout this working conversion repository
+      # --------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # --------------------------------------------------
+      # 2. Setup Python
+      # --------------------------------------------------
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+
+      # --------------------------------------------------
+      # 3. Install exact conversion dependencies
+      # --------------------------------------------------
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+
+          pip install --force-reinstall \
+            "numpy==1.26.4" \
+            "tensorflow==2.15.1" \
+            "tf2onnx==1.16.1" \
+            "onnx==1.16.2" \
+            "onnxruntime==1.18.1"
+
+
+      # --------------------------------------------------
+      # 4. Show repository structure
+      # --------------------------------------------------
+
+      - name: Inspect repository
+        run: |
+          echo "========================================"
+          echo "REPOSITORY FILES"
+          echo "========================================"
+
+          find . -maxdepth 4 -type f | sort
+
+
+      # --------------------------------------------------
+      # 5. Download official LIAE checkpoint
+      # --------------------------------------------------
+
+      - name: Download LIAE checkpoint
+        run: |
+          mkdir -p model
+
+          wget -O /tmp/LIAE.zip \
+            "https://sourceforge.net/projects/deepfacelab.mirror/files/pretrained/LIAE.f-128-80-48-16-1.000.000.zip/download"
+
+          echo
+          echo "CHECKPOINT:"
+          ls -lh /tmp/LIAE.zip
+
+
+      # --------------------------------------------------
+      # 6. Extract checkpoint
+      # --------------------------------------------------
+
+      - name: Extract checkpoint
+        run: |
+          unzip -o /tmp/LIAE.zip -d model
+
+          echo
+          echo "========================================"
+          echo "EXTRACTED CHECKPOINT"
+          echo "========================================"
+
+          find model -type f -print | sort
+
+
+      # --------------------------------------------------
+      # 7. Inspect NPY files
+      # --------------------------------------------------
+
+      - name: Inspect checkpoint weights
+        run: |
+          echo "========================================"
+          echo "NPY FILES"
+          echo "========================================"
+
+          find model -type f -name "*.npy" -print | sort
+
+          echo
+          echo "========================================"
+          echo "MODEL DIRECTORIES"
+          echo "========================================"
+
+          find model -type d -print | sort
+
+
+      # --------------------------------------------------
+      # 8. Stop here intentionally
+      # --------------------------------------------------
+
+      - name: Checkpoint inspection complete
+        run: |
+          echo
+          echo "========================================"
+          echo "CHECKPOINT INSPECTION COMPLETE"
+          echo "========================================"
+          echo
+          echo "The next step will map the actual checkpoint"
+          echo "files into the existing converter."
